@@ -5,10 +5,12 @@ namespace ofx
 	namespace mtl
 	{
 		//--------------------------------------------------------------
-		PrintEventArgs::PrintEventArgs(const string& printerName, float duration, bool bSuccess)
+		PrintEventArgs::PrintEventArgs(const string& printerName, float duration)
 			: printerName(printerName)
+			, mode(OFX_PRINT_ERROR)
+			, path("")
 			, duration(duration)
-			, bSuccess(bSuccess)
+			, bSuccess(false)
 		{
 
 		}
@@ -17,8 +19,6 @@ namespace ofx
 		Print::Print()
 			: ofThread()
 			, _name("")
-			, _path("")
-			, _bNeedsNotify(false)
 		{
 			ofAddListener(ofEvents().update, this, &Print::update);
 		}
@@ -33,13 +33,13 @@ namespace ofx
 		void Print::setup(const string& name)
 		{
 			setPrinterName(name);
+			startThread();
 		}
 
 		//--------------------------------------------------------------
 		void Print::setPrinterName(const string& name)
 		{
 			_name = name;
-			_args.printerName = name;
 		}
 		
 		//--------------------------------------------------------------
@@ -51,21 +51,68 @@ namespace ofx
 		//--------------------------------------------------------------
 		void Print::printImage(const string& path, bool bThreaded)
 		{
-			_mode = OFX_PRINT_IMAGE_PATH;
-			_path = path;
-
-			_bNeedsNotify = false;
+			PrintEventArgs *args = new PrintEventArgs(_name);
+			args->mode = OFX_PRINT_IMAGE_PATH;
+			args->path = path;
 
 			if (bThreaded) {
-				startThread(false);
+				lock();
+				printQueue.push_back(args);
+				unlock();
 			}
 			else {
-				threadedFunction();
+				printImageImpl(args);
+
+				lock();
+				resultQueue.push_back(args);
+				unlock();
 			}
 		}
 
 		//--------------------------------------------------------------
+		void Print::printImage(const ofImage& image, bool bThreaded)
+		{
+			// TODO
+		}
+
+		//--------------------------------------------------------------
 		void Print::threadedFunction()
+		{
+			while (isThreadRunning()) {
+				if (!printQueue.empty()) {
+					// Print the item at the top of the queue.
+					PrintEventArgs *args = printQueue.front();
+					printImageImpl(args);
+
+					// Move the args from the print to the result queue, for notification on the main thread.
+					lock();
+					printQueue.pop_front();
+					resultQueue.push_back(args);
+					unlock();
+				}
+			}
+		}
+
+		//--------------------------------------------------------------
+		void Print::update(ofEventArgs& args)
+		{
+			if (!resultQueue.empty()) {
+				if (mutex.tryLock()) {
+					// Notify the item at the top of the queue.
+					PrintEventArgs *args = resultQueue.front();
+					ofNotifyEvent(printCompleted, &args, this);
+
+					// Remove and delete the item.
+					resultQueue.pop_front();
+					delete args;
+
+					unlock();
+				}
+			}
+		}
+
+		//--------------------------------------------------------------
+		void Print::printImageImpl(PrintEventArgs *args)
 		{
 			bool bSuccess = true;
 
@@ -73,23 +120,31 @@ namespace ofx
 			ofLogError("ofxPrint") << "Only implemented for Windows so far, sorry!";
 			bSuccess = false;
 #endif
-			if (_name == "") {
+			if (args->printerName == "") {
 				ofLogError("ofxPrint") << "Printer name has not been set!";
 				bSuccess = false;
 			}
 
-			if (_path == "") {
-				ofLogError("ofxPrint") << "File path has not been set!";
+			if (args->mode == OFX_PRINT_ERROR) {
+				ofLogError("ofxPrint") << "PrintMode has not been set!";
 				bSuccess = false;
 			}
+			else if (args->mode == OFX_PRINT_IMAGE_PATH) {
+				if (args->path == "") {
+					ofLogError("ofxPrint") << "File path has not been set!";
+					bSuccess = false;
+				}
 
-			if (!ofFile::doesFileExist(_path)) {
-				ofLogError("ofxPrint") << "No file found at path " << _path;
-				bSuccess = false;
+				if (!ofFile::doesFileExist(args->path)) {
+					ofLogError("ofxPrint") << "No file found at path " << args->path;
+					bSuccess = false;
+				}
 			}
-
-			if (_mode != OFX_PRINT_IMAGE_PATH) {
-				ofLogError("ofxPrint") << "Unrecognized PrintMode " << _mode;
+			else if (args->mode == OFX_PRINT_IMAGE_OF) {
+				// TODO
+			}
+			else {
+				ofLogError("ofxPrint") << "Unrecognized PrintMode " << args->mode;
 				bSuccess = false;
 			}
 
@@ -98,30 +153,18 @@ namespace ofx
 			
 				string cmdStr = "";
 				cmdStr += "rundll32.exe \"C:\\Windows\\System32\\shimgvw.dll\", ImageView_PrintTo ";
-				cmdStr += "\"" + _path + "\"";
+				cmdStr += "\"" + args->path + "\"";
 				cmdStr += " ";
-				cmdStr += "\"" + _name + "\"";
+				cmdStr += "\"" + args->printerName + "\"";
 				ofSystem(cmdStr);
 
-				_args.duration = ofGetElapsedTimef() - startTime;
+				args->duration = ofGetElapsedTimef() - startTime;
 			}
 			else {
-				_args.duration = -1;
+				args->duration = -1;
 			}
 
-			_args.bSuccess = bSuccess;
-
-			// Notify on the main thread.
-			_bNeedsNotify = true;
-		}
-
-		//--------------------------------------------------------------
-		void Print::update(ofEventArgs& args)
-		{
-			if (_bNeedsNotify) {
-				ofNotifyEvent(printCompleted, _args, this);
-				_bNeedsNotify = false;
-			}
+			args->bSuccess = bSuccess;
 		}
 	}
 }

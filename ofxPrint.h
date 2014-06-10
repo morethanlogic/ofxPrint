@@ -11,9 +11,12 @@ namespace ofx
 			: public ofEventArgs
 		{
 		public:
-			PrintEventArgs(const string& printerName = "", float duration = -1, bool bSuccess = false);
+			PrintEventArgs(const string& printerName = "", float duration = -1);
 
 			string printerName;
+			PrintMode mode;
+			string path;
+			ofImage image; 
 			float duration;
 			bool bSuccess;
 		};
@@ -21,7 +24,9 @@ namespace ofx
 		//--------------------------------------------------------------
 		enum PrintMode
 		{
-			OFX_PRINT_IMAGE_PATH = 0,
+			OFX_PRINT_ERROR,
+			OFX_PRINT_IMAGE_PATH,
+			OFX_PRINT_IMAGE_OF,
 
 			OFX_PRINT_NUM_MODES
 		};
@@ -40,6 +45,7 @@ namespace ofx
 			const string& getPrinterName();
 
 			void printImage(const string& path, bool bThreaded = true);
+			void printImage(const ofImage& image, bool bThreaded = true);
 
 			void threadedFunction();
 
@@ -48,12 +54,12 @@ namespace ofx
 			ofEvent<PrintEventArgs> printCompleted;
 
 		private:
-			string _name;
-			string _path;
-			PrintMode _mode;
+			void printImageImpl(PrintEventArgs *args);
 
-			PrintEventArgs _args;
-			bool _bNeedsNotify;
+			string _name;
+
+			std::deque<PrintEventArgs *> printQueue;
+			std::deque<PrintEventArgs *> resultQueue;
 		};
 	}
 }
