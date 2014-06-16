@@ -165,6 +165,8 @@ namespace ofx
 			}
 
 			args->bSuccess = bSuccess;
+			
+			ofLogVerbose("ofxPrint") << "Printed image:\n\tpath = " << args->path << "\n\tduration = " << args->duration << "\n\tbSuccess = " << args->bSuccess;
 		}
 	}
 }
