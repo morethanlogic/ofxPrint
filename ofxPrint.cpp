@@ -100,7 +100,7 @@ namespace ofx
 				if (mutex.tryLock()) {
 					// Notify the item at the top of the queue.
 					PrintEventArgs *args = resultQueue.front();
-					ofNotifyEvent(printCompleted, &args, this);
+					ofNotifyEvent(printCompleted, *args, this);
 
 					// Remove and delete the item.
 					resultQueue.pop_front();

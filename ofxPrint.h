@@ -7,6 +7,16 @@ namespace ofx
 	namespace mtl
 	{
 		//--------------------------------------------------------------
+		enum PrintMode
+		{
+			OFX_PRINT_ERROR,
+			OFX_PRINT_IMAGE_PATH,
+			OFX_PRINT_IMAGE_OF,
+
+			OFX_PRINT_NUM_MODES
+		};
+		
+		//--------------------------------------------------------------
 		class PrintEventArgs 
 			: public ofEventArgs
 		{
@@ -19,16 +29,6 @@ namespace ofx
 			ofImage image; 
 			float duration;
 			bool bSuccess;
-		};
-
-		//--------------------------------------------------------------
-		enum PrintMode
-		{
-			OFX_PRINT_ERROR,
-			OFX_PRINT_IMAGE_PATH,
-			OFX_PRINT_IMAGE_OF,
-
-			OFX_PRINT_NUM_MODES
 		};
 
 		//--------------------------------------------------------------
